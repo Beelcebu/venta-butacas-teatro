@@ -1,0 +1,364 @@
+@using System.Collections.Generic
+@using Venta_de_butaca.Services
+@inject IMercadoPagoService MercadoPagoService
+@inject NavigationManager NavigationManager
+
+<div class="theater-container">
+    <div class="theater-content">
+        <div class="theater-header">
+            <h2>SELECCIONA UNA BUTACA</h2>
+        </div>
+
+        <div class="theater-view">
+            <svg viewBox="-100 0 1400 1100" class="theater-svg">
+                <!-- Escenario -->
+                <defs>
+                    <linearGradient id="stageGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#444;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#222;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                
+                <path d="M200,40 Q600,20 1000,40 L1000,80 Q600,100 200,80 Z" fill="url(#stageGradient)" />
+                <text x="600" y="65" text-anchor="middle" fill="white" font-size="24" font-family="Arial">ESCENARIO</text>
+
+                <!-- Butacas con disposición curva -->
+                @foreach (var row in SeatRows)
+                {
+                    @foreach (var seat in row.Seats)
+                    {
+                        <g @onclick="() => ToggleSeatSelection(seat)" 
+                           transform="translate(@seat.X,@seat.Y) rotate(@(GetSeatRotation(seat.X - 600)))"
+                           style="cursor:pointer">
+                            <circle r="8" 
+                                   fill="@GetSeatColor(seat.Category)"
+                                   stroke="@(SelectedSeats.Contains(seat) ? "#fff" : "#666")"
+                                   stroke-width="@(SelectedSeats.Contains(seat) ? 2 : 1)"
+                                   class="seat-circle @(SelectedSeats.Contains(seat) ? "selected" : "")" />
+                            <text y="25" text-anchor="middle" fill="#999" font-size="10" 
+                                  transform="rotate(@(-GetSeatRotation(seat.X - 600)))">
+                                @seat.Label
+                            </text>
+                        </g>
+                    }
+                }
+            </svg>
+        </div>
+
+        <div class="price-legend">
+            <div class="legend-title">CATEGORÍAS Y PRECIOS</div>
+            <div class="legend-grid">
+                @foreach (var category in SeatCategories)
+                {
+                    <div class="price-item">
+                        <div class="seat-icon" style="background-color: @category.Color">
+                            💺
+                        </div>
+                        <div class="category-info">
+                            <span class="category-name">@category.Name</span>
+                            <span class="category-description">@GetCategoryDescription(category.Name)</span>
+                        </div>
+                        <div class="price">$@category.Price.ToString("N0")</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="cart-panel">
+        <div class="cart-header">
+            <h3>Resumen de Compra</h3>
+            @if (SelectedSeats.Any())
+            {
+                <span class="seats-count">@SelectedSeats.Count asiento@(SelectedSeats.Count != 1 ? "s" : "") seleccionado@(SelectedSeats.Count != 1 ? "s" : "")</span>
+            }
+        </div>
+
+        @if (!SelectedSeats.Any())
+        {
+            <div class="empty-cart">
+                <p>No has seleccionado ningún asiento</p>
+                <small>Haz clic en los asientos que deseas comprar</small>
+            </div>
+        }
+        else
+        {
+            <div class="selected-seats">
+                @foreach (var seat in SelectedSeats)
+                {
+                    <div class="selected-seat-item">
+                        <div class="seat-info">
+                            <span class="seat-label">Butaca @seat.Label</span>
+                            <span class="seat-category">@seat.Category</span>
+                        </div>
+                        <div class="seat-price">
+                            $@GetCategoryPrice(seat.Category).ToString("N0")
+                        </div>
+                        <button class="remove-seat" @onclick="() => ToggleSeatSelection(seat)">
+                            ×
+                        </button>
+                    </div>
+                }
+            </div>
+
+            <div class="cart-summary">
+                <div class="total">
+                    <span>Total:</span>
+                    <span class="total-amount">$@(SelectedSeats.Sum(s => GetCategoryPrice(s.Category)).ToString("N0"))</span>
+                </div>
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="error-message">
+                        @errorMessage
+                    </div>
+                }
+                <button class="buy-button" @onclick="ProcessPurchase">
+                    COMPRAR AHORA
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    class SeatCategory { 
+        public required string Name { get; set; }
+        public required string Color { get; set; }
+        public decimal Price { get; set; }
+    }
+    
+    class Seat { 
+        public required string Label { get; set; }
+        public required string Category { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+    }
+    
+    class SeatRow {
+        public required string RowLabel { get; set; }
+        public required List<Seat> Seats { get; set; }
+    }
+
+    List<SeatCategory> SeatCategories = new()
+    {
+        new SeatCategory { Name = "VIP Premium", Color = "#FFD700", Price = 150000 },  // Dorado - Primeras filas centrales
+        new SeatCategory { Name = "Platea", Color = "#E74C3C", Price = 100000 },       // Rojo - Zona central y lateral de platea
+        new SeatCategory { Name = "General", Color = "#3498DB", Price = 50000 }        // Azul - Niveles superiores y laterales
+    };
+
+    List<SeatRow> SeatRows = new();
+    List<Seat> SelectedSeats = new();
+
+    protected override void OnInitialized()
+    {
+        // Recreando el mapeo de butacas basado en el plano real del teatro
+        // con 3 categorías y distribución más realista
+        
+        // PLATEA BAJA (VIP Premium y Platea)
+        CreatePlatSection();
+        
+        // SEGUNDO NIVEL (Platea y General)
+        CreateSecondLevel();
+        
+        // TERCER NIVEL (General)
+        CreateThirdLevel();
+    }
+
+    void CreatePlatSection()
+    {
+        // Filas A-H de Platea (8 filas)
+        for (int i = 0; i < 8; i++)
+        {
+            var row = new SeatRow { RowLabel = ((char)('A' + i)).ToString(), Seats = new List<Seat>() };
+            
+            // Número de asientos varía por fila (más asientos en el centro)
+            int seatsInRow = i <= 3 ? 22 + (i * 2) : 28 - ((i - 3) * 2); // De 22 a 28 asientos
+            double rowRadius = 420 + (i * 30); // Radio más pequeño para platea
+            double angleStep = 80.0 / seatsInRow; // Ángulo más amplio
+            
+            for (int j = 0; j < seatsInRow; j++)
+            {
+                double angle = -40 + (j * angleStep);
+                double radAngle = angle * Math.PI / 180;
+                
+                // Determinar categoría basada en posición
+                string category = GetPlatCategory(i, j, seatsInRow);
+                
+                row.Seats.Add(new Seat
+                {
+                    Label = row.RowLabel + (j + 1),
+                    Category = category,
+                    X = 600 + rowRadius * Math.Sin(radAngle),
+                    Y = 150 + (i * 32) + rowRadius * (1 - Math.Cos(radAngle)) * 0.15
+                });
+            }
+            SeatRows.Add(row);
+        }
+    }
+
+    void CreateSecondLevel()
+    {
+        // Filas I-N de Segundo Nivel (6 filas)
+        for (int i = 0; i < 6; i++)
+        {
+            var row = new SeatRow { RowLabel = ((char)('I' + i)).ToString(), Seats = new List<Seat>() };
+            
+            int seatsInRow = 24 + (i < 3 ? i * 2 : (6 - i) * 2); // De 24 a 30 asientos
+            double rowRadius = 480 + (i * 35);
+            double angleStep = 90.0 / seatsInRow;
+            
+            for (int j = 0; j < seatsInRow; j++)
+            {
+                double angle = -45 + (j * angleStep);
+                double radAngle = angle * Math.PI / 180;
+                
+                // Categoría basada en posición en segundo nivel
+                string category = GetSecondLevelCategory(i, j, seatsInRow);
+                
+                row.Seats.Add(new Seat
+                {
+                    Label = row.RowLabel + (j + 1),
+                    Category = category,
+                    X = 600 + rowRadius * Math.Sin(radAngle),
+                    Y = 400 + (i * 38) + rowRadius * (1 - Math.Cos(radAngle)) * 0.12
+                });
+            }
+            SeatRows.Add(row);
+        }
+    }
+
+    void CreateThirdLevel()
+    {
+        // Filas O-T de Tercer Nivel (6 filas) - Solo categoría General
+        for (int i = 0; i < 6; i++)
+        {
+            var row = new SeatRow { RowLabel = ((char)('O' + i)).ToString(), Seats = new List<Seat>() };
+            
+            int seatsInRow = 20 + (i * 2); // De 20 a 30 asientos
+            double rowRadius = 550 + (i * 40);
+            double angleStep = 100.0 / seatsInRow;
+            
+            for (int j = 0; j < seatsInRow; j++)
+            {
+                double angle = -50 + (j * angleStep);
+                double radAngle = angle * Math.PI / 180;
+                
+                row.Seats.Add(new Seat
+                {
+                    Label = row.RowLabel + (j + 1),
+                    Category = "General", // Todo el tercer nivel es General
+                    X = 600 + rowRadius * Math.Sin(radAngle),
+                    Y = 650 + (i * 42) + rowRadius * (1 - Math.Cos(radAngle)) * 0.1
+                });
+            }
+            SeatRows.Add(row);
+        }
+    }
+
+    string GetPlatCategory(int rowIndex, int seatIndex, int totalSeats)
+    {
+        // En platea: VIP Premium en las primeras 3 filas del centro
+        if (rowIndex <= 2)
+        {
+            int centerStart = totalSeats / 3;
+            int centerEnd = totalSeats - (totalSeats / 3);
+            
+            if (seatIndex >= centerStart && seatIndex <= centerEnd)
+                return "VIP Premium";
+        }
+        
+        // El resto de platea es categoría "Platea"
+        return "Platea";
+    }
+
+    string GetSecondLevelCategory(int rowIndex, int seatIndex, int totalSeats)
+    {
+        // En segundo nivel: Platea en las primeras 2 filas del centro
+        if (rowIndex <= 1)
+        {
+            int centerStart = totalSeats / 4;
+            int centerEnd = totalSeats - (totalSeats / 4);
+            
+            if (seatIndex >= centerStart && seatIndex <= centerEnd)
+                return "Platea";
+        }
+        
+        // El resto del segundo nivel es General
+        return "General";
+    }
+
+    void ToggleSeatSelection(Seat seat)
+    {
+        if (SelectedSeats.Contains(seat))
+        {
+            SelectedSeats.Remove(seat);
+        }
+        else
+        {
+            SelectedSeats.Add(seat);
+        }
+        StateHasChanged();
+    }
+
+    double GetSeatRotation(double xOffset)
+    {
+        return (xOffset / 10.0);
+    }
+
+    string GetSeatColor(string category)
+        => SeatCategories.FirstOrDefault(c => c.Name == category)?.Color ?? "#888";
+
+    decimal GetCategoryPrice(string category)
+        => SeatCategories.FirstOrDefault(c => c.Name == category)?.Price ?? 0;
+
+    string GetCategoryDescription(string category)
+    {
+        return category switch
+        {
+            "VIP Premium" => "Primera fila central - La mejor experiencia",
+            "Platea" => "Vista privilegiada del escenario",
+            "General" => "Buena vista - Precio accesible",
+            _ => "Categoría estándar"
+        };
+    }
+
+    private string? errorMessage;
+
+    async Task ProcessPurchase()
+    {
+        if (!SelectedSeats.Any()) return;
+
+        try
+        {
+            errorMessage = null;
+            var items = SelectedSeats.Select(seat => new PaymentItem
+            {
+                Title = $"Butaca {seat.Label} - {seat.Category}",
+                UnitPrice = GetCategoryPrice(seat.Category),
+                Quantity = 1
+            }).ToList();
+
+            var baseUrl = NavigationManager.BaseUri.TrimEnd('/');
+            var checkoutUrl = await MercadoPagoService.CreatePreference(
+                items,
+                $"{baseUrl}/payment/success",
+                $"{baseUrl}/payment/failure",
+                $"{baseUrl}/payment/pending"
+            );
+
+            if (string.IsNullOrEmpty(checkoutUrl))
+            {
+                errorMessage = "No se pudo crear la preferencia de pago. Verifica la configuración de MercadoPago.";
+                StateHasChanged();
+                return;
+            }
+
+            NavigationManager.NavigateTo(checkoutUrl);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al procesar el pago: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+}

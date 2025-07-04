@@ -1,0 +1,90 @@
+@page "/payment/failure"
+@using Microsoft.AspNetCore.Components
+
+<div class="payment-result failure">
+    <div class="result-icon">
+        ❌
+    </div>
+    <h2>Pago No Procesado</h2>
+    <p>Hubo un problema al procesar tu pago.</p>
+    <p>Por favor, intenta nuevamente o contacta con soporte.</p>
+    
+    <div class="actions">
+        <button class="btn-primary" @onclick="GoHome">
+            Volver al Inicio
+        </button>
+        <button class="btn-secondary" @onclick="TryAgain">
+            Intentar de Nuevo
+        </button>
+    </div>
+</div>
+
+@code {
+    [Inject] NavigationManager NavigationManager { get; set; } = null!;
+
+    void GoHome()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+
+    void TryAgain()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}
+
+<style>
+    .payment-result {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 50vh;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .result-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .failure h2 {
+        color: #dc3545;
+        margin-bottom: 1rem;
+    }
+
+    .actions {
+        margin-top: 2rem;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+    }
+
+    .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+
+    .btn-secondary:hover {
+        background-color: #5a6268;
+    }
+</style>

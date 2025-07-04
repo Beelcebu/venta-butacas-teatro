@@ -1,0 +1,66 @@
+@page "/payment/success"
+@using Microsoft.AspNetCore.Components
+
+<div class="payment-result success">
+    <div class="result-icon">
+        ✅
+    </div>
+    <h2>¡Pago Exitoso!</h2>
+    <p>Tu compra de butacas ha sido procesada correctamente.</p>
+    <p>Recibirás un email de confirmación con los detalles de tu compra.</p>
+    
+    <div class="actions">
+        <button class="btn-primary" @onclick="GoHome">
+            Volver al Inicio
+        </button>
+    </div>
+</div>
+
+@code {
+    [Inject] NavigationManager NavigationManager { get; set; } = null!;
+
+    void GoHome()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}
+
+<style>
+    .payment-result {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 50vh;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .result-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .success h2 {
+        color: #28a745;
+        margin-bottom: 1rem;
+    }
+
+    .actions {
+        margin-top: 2rem;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+</style>
