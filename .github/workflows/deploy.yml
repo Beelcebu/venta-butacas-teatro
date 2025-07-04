@@ -28,13 +28,13 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 9.0.x
         
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore "Venta de butaca.csproj"
       
-    - name: Publish
-      run: dotnet publish -c Release -o dist --nologo
+    - name: Publish Blazor WebAssembly
+      run: dotnet publish "Venta de butaca.csproj" -c Release -f net9.0 -o dist --nologo
       
     - name: Change base-tag in index.html
       run: sed -i 's/<base href="\/" \/>/<base href="\/venta-butacas-teatro\/" \/>/g' dist/wwwroot/index.html
